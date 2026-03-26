@@ -53,6 +53,7 @@ export type ProviderDef = {
 type RouterConfig = {
   providers?: Record<string, ProviderDef>;
   tiers: Record<Tier, string>;
+  agentMinTiers?: Record<string, string>;
 };
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
@@ -310,6 +311,12 @@ export function loadTierConfig(log?: LogFn): TierConfig {
     COMPLEX: resolveTierModel(tiers.COMPLEX ?? DEFAULT_TIERS.COMPLEX, log),
     REASONING: resolveTierModel(tiers.REASONING ?? DEFAULT_TIERS.REASONING, log),
   };
+}
+
+/** Load per-agent minimum tier overrides from router-config.json */
+export function loadAgentMinTiers(): Record<string, string> | undefined {
+  const config = readRouterConfig();
+  return config?.agentMinTiers;
 }
 
 export function getTierStrings(): Record<Tier, string> {

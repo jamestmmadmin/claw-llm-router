@@ -35,7 +35,8 @@ All tiers route through OpenRouter:
 1. **Passthrough mode** — PR #4, source: TMMOC-91. Trivial prompts (score < -0.15, len < 200) route to SIMPLE with no fallback chain. Extension pattern (`tmm-passthrough.ts`) wraps upstream classifier — merge-safe.
 2. **Provider abstraction** — PR #5, source: TMMOC-91. Optional `providers` section in router-config.json with `baseUrl`, `apiKeyEnv`, `noAuth`. Supports Ollama, LM Studio, vLLM, or any OpenAI-compatible endpoint. Fully backwards-compatible.
 
+3. **Per-agent minimum tier** — PR #6, source: TMMOC-91. `agentMinTiers` in router-config.json maps agent IDs to minimum tiers. E.g. `project-manager-lead: COMPLEX` ensures Frontier Alicia never drops below Sonnet. Extension pattern (`tmm-agent-tiers.ts`).
+
 ### Planned (each a separate PR)
-3. **Per-agent minimum tier** — Frontier Alicia always COMPLEX (TMMOC-91)
 4. **Job-type presets** — code-review/content/data-processing have different tier mappings (TMMOC-91)
 5. **Historical model stack** — economy preset with previous-gen models (TMMOC-91)
