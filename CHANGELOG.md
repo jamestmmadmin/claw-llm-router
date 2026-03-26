@@ -29,10 +29,12 @@ All tiers route through OpenRouter:
 }
 ```
 
-## v1.1.0 — Planned
+## v1.1.0 — In Progress
 
-### Features (each a separate PR)
-1. **Passthrough mode** — trivial tasks skip proxy, no overhead (TMMOC-91)
+### Completed
+1. **Passthrough mode** — PR #4, source: TMMOC-91. Trivial prompts (score < -0.15, len < 200) route to SIMPLE with no fallback chain. Extension pattern (`tmm-passthrough.ts`) wraps upstream classifier — merge-safe.
+
+### Planned (each a separate PR)
 2. **Provider abstraction** — configure baseUrl per provider: local Ollama, cloud OpenRouter, or mixed (TMMOC-91)
 3. **Per-agent minimum tier** — Frontier Alicia always COMPLEX (TMMOC-91)
 4. **Job-type presets** — code-review/content/data-processing have different tier mappings (TMMOC-91)
