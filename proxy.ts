@@ -12,8 +12,9 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { tierFromModelId, FALLBACK_CHAIN, type Tier } from "./classifier.js";
 import { classifyWithPassthrough } from "./tmm-passthrough.js";
+import { applyAgentMinTier, type AgentMinTierConfig } from "./tmm-agent-tiers.js";
 import { PROXY_PORT } from "./models.js";
-import { loadTierConfig } from "./tier-config.js";
+import { loadTierConfig, loadAgentMinTiers } from "./tier-config.js";
 import { callProvider, MissingApiKeyError } from "./providers/index.js";
 import type { PluginLogger, ChatMessage } from "./providers/types.js";
 import { RouterLogger } from "./router-logger.js";
@@ -184,6 +185,21 @@ async function handleChatCompletion(
       confidence: result.confidence,
       signals: result.signals,
     });
+  }
+
+  // ── TMM: Per-agent minimum tier override ─────────────────────────────
+  const agentMinTiers = loadAgentMinTiers();
+  if (agentMinTiers && agentId) {
+    const override = applyAgentMinTier(tier, agentId, agentMinTiers);
+    if (override.wasOverridden) {
+      rlog.classify({
+        tier: override.tier,
+        method: "agent-min-tier",
+        detail: `(agent=${agentId}, min=${override.minTier}, was=${tier})`,
+      });
+      tier = override.tier;
+      classificationMethod = "agent-min-tier";
+    }
   }
 
   // ── Route ──────────────────────────────────────────────────────────────
