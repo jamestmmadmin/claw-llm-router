@@ -26,8 +26,9 @@ import { classify, type ClassificationResult } from "./classifier.js";
  * with zero complexity signals — safe to skip fallback overhead.
  *
  * Threshold is intentionally conservative to avoid misrouting.
- * -0.15 catches: "hello", "yes", "what is X", "define Y", "who is Z"
- * -0.15 does NOT catch: any prompt with even one complexity signal
+ * -0.15 typically catches: "hello", "yes or no", "what is X", "define Y", "who is Z"
+ * -0.15 does NOT catch: a lone "yes" (scores ~-0.08) or any prompt with
+ * even one complexity signal
  */
 const PASSTHROUGH_THRESHOLD = -0.15;
 

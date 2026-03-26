@@ -10,7 +10,7 @@
  */
 
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
-import { classify, tierFromModelId, FALLBACK_CHAIN, type Tier } from "./classifier.js";
+import { tierFromModelId, FALLBACK_CHAIN, type Tier } from "./classifier.js";
 import { classifyWithPassthrough } from "./tmm-passthrough.js";
 import { PROXY_PORT } from "./models.js";
 import { loadTierConfig } from "./tier-config.js";
