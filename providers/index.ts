@@ -120,7 +120,7 @@ export async function callProvider(
   res: ServerResponse,
   log: PluginLogger,
 ): Promise<void> {
-  if (!spec.apiKey) {
+  if (!spec.apiKey && !spec.noAuth) {
     throw new MissingApiKeyError(spec.provider, spec.modelId, envVarName(spec.provider));
   }
   const rlog = new RouterLogger(log);

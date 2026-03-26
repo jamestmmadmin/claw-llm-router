@@ -30,7 +30,7 @@ Config file: `router-config.json` in the plugin directory.
 | Field | Required | Description |
 |-------|----------|-------------|
 | `baseUrl` | Yes | OpenAI-compatible API endpoint |
-| `apiKeyEnv` | No | Env var name for API key (default: `PROVIDER_API_KEY`) |
+| `apiKeyEnv` | No | Env var name for API key (default: `${PROVIDER}_API_KEY`, e.g. `OPENAI_API_KEY`) |
 | `noAuth` | No | Set `true` for local providers that need no API key (e.g. Ollama) |
 
 ## Examples

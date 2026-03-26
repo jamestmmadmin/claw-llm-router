@@ -34,6 +34,7 @@ export type TierModelSpec = {
   apiKey: string;
   isAnthropic: boolean;
   isOAuth: boolean;
+  noAuth?: boolean;  // true for local providers (Ollama etc.) — skip Authorization header
 };
 
 export type TierConfig = Record<Tier, TierModelSpec>;
@@ -45,7 +46,7 @@ export type TierConfig = Record<Tier, TierModelSpec>;
  */
 export type ProviderDef = {
   baseUrl: string;
-  apiKeyEnv?: string;  // env var name for API key (overrides default PROVIDER_API_KEY)
+  apiKeyEnv?: string;  // env var for API key (overrides default ${PROVIDER}_API_KEY convention)
   noAuth?: boolean;    // true for local providers that need no API key (e.g. Ollama)
 };
 
@@ -99,12 +100,24 @@ function readOpenClawConfig(): Record<string, unknown> {
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
+// Cache router config to avoid repeated fs reads per request.
+// Refreshed every 30s to pick up config changes.
+let _cachedRouterConfig: RouterConfig | undefined | null = null; // null = not loaded
+const _configCacheInterval = setInterval(() => { _cachedRouterConfig = null; }, 30_000);
+_configCacheInterval.unref?.();
+
 function readRouterConfig(): RouterConfig | undefined {
+  if (_cachedRouterConfig !== null) return _cachedRouterConfig;
   try {
-    if (!existsSync(ROUTER_CONFIG_PATH)) return undefined;
+    if (!existsSync(ROUTER_CONFIG_PATH)) {
+      _cachedRouterConfig = undefined;
+      return undefined;
+    }
     const raw = readFileSync(ROUTER_CONFIG_PATH, "utf8");
-    return JSON.parse(raw) as RouterConfig;
+    _cachedRouterConfig = JSON.parse(raw) as RouterConfig;
+    return _cachedRouterConfig;
   } catch {
+    _cachedRouterConfig = undefined;
     return undefined;
   }
 }
@@ -152,7 +165,7 @@ export function loadApiKey(provider: string, log?: LogFn): ApiKeyResult {
   const providerDef = routerConfig?.providers?.[provider];
   if (providerDef?.noAuth) {
     log?.(`[auth] ${provider}: noAuth provider — skipping key lookup`);
-    return { key: "no-key-required", isOAuth: false };
+    return { key: "", isOAuth: false };
   }
 
   // Allow provider def to override the env var name
@@ -253,7 +266,7 @@ function resolveBaseUrl(provider: string): string {
   if (wellKnown) return wellKnown;
 
   throw new Error(
-    `[claw-llm-router] Unknown provider "${provider}" — not in router-config.json, openclaw.json, or well-known URLs. Add it to router-config.json providers or use /router set.`,
+    `[claw-llm-router] Unknown provider "${provider}" — not in router-config.json providers, openclaw.json, or well-known URLs. Add a providers entry with baseUrl to router-config.json.`,
   );
 }
 
@@ -273,7 +286,11 @@ export function resolveTierModel(tierString: string, log?: LogFn): TierModelSpec
   const { key: apiKey, isOAuth } = loadApiKey(provider, log);
   const isAnthropic = provider === "anthropic" || baseUrl.includes("anthropic.com");
 
-  return { provider, modelId, baseUrl, apiKey, isAnthropic, isOAuth };
+  // Propagate noAuth flag from provider definition
+  const routerConfig = readRouterConfig();
+  const isNoAuth = routerConfig?.providers?.[provider]?.noAuth === true;
+
+  return { provider, modelId, baseUrl, apiKey, isAnthropic, isOAuth, noAuth: isNoAuth || undefined };
 }
 
 // ── Tier Config Read/Write ───────────────────────────────────────────────────

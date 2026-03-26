@@ -68,12 +68,17 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      // Skip Authorization header for noAuth providers (e.g. local Ollama)
+      if (spec.apiKey) {
+        headers.Authorization = `Bearer ${spec.apiKey}`;
+      }
+
       const resp = await fetch(url, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${spec.apiKey}`,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
