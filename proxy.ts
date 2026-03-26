@@ -42,6 +42,37 @@ function extractSystemPrompt(messages: ChatMessage[]): string {
     .join(" ");
 }
 
+// ── TMM: Extract agent and project identifiers for cost attribution ──────────
+
+// Sanitize attribution values — strip characters that break the /‑delimited user string
+function sanitizeAttr(value: string): string {
+  return value.replace(/[/\s]/g, "_").slice(0, 64);
+}
+
+function extractAgentId(systemPrompt: string): string | null {
+  const match = systemPrompt.match(/agent=([a-zA-Z0-9_-]+)/);
+  return match ? sanitizeAttr(match[1]) : null;
+}
+
+function extractProjectTag(messages: ChatMessage[]): string | null {
+  // Only check user-role messages to avoid picking up echoed project refs from assistant/system
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    const content = typeof m.content === "string"
+      ? m.content
+      : Array.isArray(m.content)
+        ? (m.content as Array<{ type: string; text?: string }>).filter(c => c.type === "text").map(c => c.text ?? "").join(" ")
+        : "";
+    if (!content) continue;
+    const projectMatch = content.match(/\b(DASH|TMMOC|EDU|FIT|DJAX|OCL|GSM)-\d+/i);
+    if (projectMatch) return sanitizeAttr(projectMatch[0].toUpperCase());
+    const tagMatch = content.match(/project:([a-zA-Z0-9_-]+)/i);
+    if (tagMatch) return sanitizeAttr(tagMatch[1]);
+  }
+  return null;
+}
+
 // ── Request router ────────────────────────────────────────────────────────────
 
 async function handleChatCompletion(
@@ -57,6 +88,10 @@ async function handleChatCompletion(
   const rlog = new RouterLogger(log);
   const userPrompt = extractUserPrompt(messages);
   const systemPrompt = extractSystemPrompt(messages);
+
+  // TMM: Extract attribution identifiers
+  const agentId = extractAgentId(systemPrompt);
+  const projectTag = extractProjectTag(messages);
 
   // ── Extract classifiable prompt ──────────────────────────────────────────
   // The user message may contain more than just the user's input:
@@ -169,16 +204,19 @@ async function handleChatCompletion(
     const spec = tierConfig[attemptTier];
 
     // TMM: Inject user parameter for cost attribution — only for OpenRouter provider
-    // Updates per attempt so the actual serving tier/model is tracked, not just the initial classification
+    // Clone body to avoid mutating shared object across fallback attempts
+    const attemptBody = { ...body };
     if (spec.provider === "openrouter") {
-      const existingUser = typeof body.user === "string" ? body.user : "";
-      body.user = existingUser
-        ? `${existingUser}/tier:${attemptTier}/model:${spec.modelId}`
-        : `tier:${attemptTier}/model:${spec.modelId}`;
+      const parts: string[] = [];
+      if (agentId) parts.push(`agent:${agentId}`);
+      if (projectTag) parts.push(`project:${projectTag}`);
+      parts.push(`tier:${attemptTier}`);
+      parts.push(`model:${(spec.modelId.split("/").pop() ?? spec.modelId).replace(/[/\s]/g, "_")}`);
+      attemptBody.user = parts.join("/");
     }
 
     try {
-      await callProvider(spec, body, stream, res, log);
+      await callProvider(spec, attemptBody, stream, res, log);
       return; // success
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
