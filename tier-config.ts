@@ -63,7 +63,8 @@ const WELL_KNOWN_BASE_URLS: Record<string, string> = {
   fireworks: "https://api.fireworks.ai/inference/v1",
   perplexity: "https://api.perplexity.ai",
   xai: "https://api.x.ai/v1",
-  // TMM: OpenRouter as unified backend — all tiers route through here
+  // TMM: OpenRouter available as a provider backend for tier routing
+  // To use: set tier model to "openrouter/<model>" (e.g. "openrouter/google/gemini-2.0-flash-001")
   openrouter: "https://openrouter.ai/api/v1",
 };
 
@@ -76,6 +77,7 @@ const ENV_VAR_OVERRIDES: Record<string, string> = {
 // Some providers use a different ID in OpenClaw's auth store
 const AUTH_PROFILE_ALIASES: Record<string, string> = {
   openrouter: "openrouter",
+  // Note: minimax alias removed (Chinese provider policy) — original was: minimax: "minimax-portal"
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -165,15 +165,18 @@ async function handleChatCompletion(
   let lastError: Error | undefined;
   let allMissingKeys = true;
 
-  // TMM: Inject user parameter for OpenRouter per-agent cost attribution
-  // Format: "tier:<tier>/model:<modelId>" — agent ID added by OpenClaw upstream
-  const existingUser = (body.user as string) ?? "";
-  body.user = existingUser
-    ? `${existingUser}/tier:${tier}`
-    : `tier:${tier}`;
-
   for (const attemptTier of chain) {
     const spec = tierConfig[attemptTier];
+
+    // TMM: Inject user parameter for cost attribution — only for OpenRouter provider
+    // Updates per attempt so the actual serving tier/model is tracked, not just the initial classification
+    if (spec.provider === "openrouter") {
+      const existingUser = typeof body.user === "string" ? body.user : "";
+      body.user = existingUser
+        ? `${existingUser}/tier:${attemptTier}/model:${spec.modelId}`
+        : `tier:${attemptTier}/model:${spec.modelId}`;
+    }
+
     try {
       await callProvider(spec, body, stream, res, log);
       return; // success
