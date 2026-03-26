@@ -10,7 +10,8 @@
  */
 
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
-import { classify, tierFromModelId, FALLBACK_CHAIN, type Tier } from "./classifier.js";
+import { tierFromModelId, FALLBACK_CHAIN, type Tier } from "./classifier.js";
+import { classifyWithPassthrough } from "./tmm-passthrough.js";
 import { PROXY_PORT } from "./models.js";
 import { loadTierConfig } from "./tier-config.js";
 import { callProvider, MissingApiKeyError } from "./providers/index.js";
@@ -173,12 +174,12 @@ async function handleChatCompletion(
       detail: `(no current-message marker in ${userPrompt.length}-char packed context)`,
     });
   } else {
-    const result = classify(classifiablePrompt);
+    const result = classifyWithPassthrough(classifiablePrompt);
     tier = result.tier;
-    classificationMethod = "rule-based";
+    classificationMethod = result.passthrough ? "passthrough" : "rule-based";
     rlog.classify({
       tier,
-      method: "rule-based",
+      method: classificationMethod,
       score: result.score,
       confidence: result.confidence,
       signals: result.signals,
@@ -187,7 +188,8 @@ async function handleChatCompletion(
 
   // ── Route ──────────────────────────────────────────────────────────────
   const tierConfig = loadTierConfig();
-  const chain = FALLBACK_CHAIN[tier];
+  // TMM: Passthrough skips fallback chain — single attempt on SIMPLE only
+  const chain = classificationMethod === "passthrough" ? [tier] as Tier[] : FALLBACK_CHAIN[tier];
   const targetSpec = tierConfig[tier];
   rlog.route({
     tier,
