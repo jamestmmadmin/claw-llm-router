@@ -38,7 +38,19 @@ export type TierModelSpec = {
 
 export type TierConfig = Record<Tier, TierModelSpec>;
 
+/**
+ * Provider definition in router-config.json.
+ * Allows configuring custom baseUrls for any provider — local (Ollama),
+ * cloud (OpenRouter), or hybrid setups.
+ */
+export type ProviderDef = {
+  baseUrl: string;
+  apiKeyEnv?: string;  // env var name for API key (overrides default PROVIDER_API_KEY)
+  noAuth?: boolean;    // true for local providers that need no API key (e.g. Ollama)
+};
+
 type RouterConfig = {
+  providers?: Record<string, ProviderDef>;
   tiers: Record<Tier, string>;
 };
 
@@ -135,7 +147,16 @@ export function parseProfileCredential(profile: AuthProfile): ApiKeyResult | nul
 }
 
 export function loadApiKey(provider: string, log?: LogFn): ApiKeyResult {
-  const envKey = envVarName(provider);
+  // Check if this provider is configured as noAuth (e.g. local Ollama)
+  const routerConfig = readRouterConfig();
+  const providerDef = routerConfig?.providers?.[provider];
+  if (providerDef?.noAuth) {
+    log?.(`[auth] ${provider}: noAuth provider — skipping key lookup`);
+    return { key: "no-key-required", isOAuth: false };
+  }
+
+  // Allow provider def to override the env var name
+  const envKey = providerDef?.apiKeyEnv ?? envVarName(provider);
 
   // 1. Environment variable
   if (process.env[envKey]) {
@@ -210,7 +231,12 @@ export function loadApiKey(provider: string, log?: LogFn): ApiKeyResult {
 // ── Provider Resolution ──────────────────────────────────────────────────────
 
 function resolveBaseUrl(provider: string): string {
-  // First check openclaw.json models.providers for a configured baseUrl
+  // 1. Check router-config.json providers (custom provider definitions)
+  const routerConfig = readRouterConfig();
+  const providerDef = routerConfig?.providers?.[provider];
+  if (providerDef?.baseUrl) return providerDef.baseUrl;
+
+  // 2. Check openclaw.json models.providers for a configured baseUrl
   try {
     const config = readOpenClawConfig();
     const models = config.models as
@@ -222,12 +248,12 @@ function resolveBaseUrl(provider: string): string {
     /* fall through */
   }
 
-  // Fall back to well-known URLs
+  // 3. Fall back to well-known URLs
   const wellKnown = WELL_KNOWN_BASE_URLS[provider];
   if (wellKnown) return wellKnown;
 
   throw new Error(
-    `[claw-llm-router] Unknown provider "${provider}" — not in openclaw.json and no well-known URL. Configure it in openclaw.json models.providers or use /router set.`,
+    `[claw-llm-router] Unknown provider "${provider}" — not in router-config.json, openclaw.json, or well-known URLs. Add it to router-config.json providers or use /router set.`,
   );
 }
 

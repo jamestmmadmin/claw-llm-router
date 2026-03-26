@@ -1,82 +1,147 @@
 # Router Configuration
 
-## Provider Setup
+Config file: `router-config.json` in the plugin directory.
 
-The router supports any OpenAI-compatible API endpoint. Configure where your models are.
+## Config Format
+
+```json
+{
+  "providers": {
+    "<name>": {
+      "baseUrl": "http://...",
+      "apiKeyEnv": "MY_API_KEY",
+      "noAuth": false
+    }
+  },
+  "tiers": {
+    "SIMPLE": "<provider>/<model-id>",
+    "MEDIUM": "<provider>/<model-id>",
+    "COMPLEX": "<provider>/<model-id>",
+    "REASONING": "<provider>/<model-id>"
+  }
+}
+```
+
+- **providers** (optional) — custom provider definitions with `baseUrl`. If omitted, the router uses well-known URLs for standard providers (openrouter, anthropic, google, openai, etc).
+- **tiers** — maps each complexity tier to `provider/model-id`. The provider name is the first segment before `/`.
+
+### Provider fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `baseUrl` | Yes | OpenAI-compatible API endpoint |
+| `apiKeyEnv` | No | Env var name for API key (default: `PROVIDER_API_KEY`) |
+| `noAuth` | No | Set `true` for local providers that need no API key (e.g. Ollama) |
+
+## Examples
 
 ### Cloud Only (OpenRouter)
+
+No `providers` section needed — OpenRouter is a well-known provider.
+
 ```json
 {
-  "providers": {
-    "cloud": {
-      "type": "openai-compatible",
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "apiKey": "from-env:OPENROUTER_API_KEY"
-    }
-  },
   "tiers": {
-    "SIMPLE": { "provider": "cloud", "model": "google/gemini-2.0-flash-001" },
-    "MEDIUM": { "provider": "cloud", "model": "anthropic/claude-haiku-4.5" },
-    "COMPLEX": { "provider": "cloud", "model": "anthropic/claude-sonnet-4.6" }
+    "SIMPLE": "openrouter/google/gemini-2.0-flash-001",
+    "MEDIUM": "openrouter/anthropic/claude-haiku-4.5",
+    "COMPLEX": "openrouter/anthropic/claude-sonnet-4.6",
+    "REASONING": "openrouter/anthropic/claude-sonnet-4.6"
   }
 }
 ```
+
+API key: set `OPENROUTER_API_KEY` env var or add to OpenClaw auth profiles.
 
 ### Local Only (Ollama)
+
 ```json
 {
   "providers": {
-    "local": {
-      "type": "openai-compatible",
-      "baseUrl": "http://localhost:11434/v1"
+    "ollama": {
+      "baseUrl": "http://localhost:11434/v1",
+      "noAuth": true
     }
   },
   "tiers": {
-    "SIMPLE": { "provider": "local", "model": "llama3.2:3b" },
-    "MEDIUM": { "provider": "local", "model": "qwen2.5:14b" },
-    "COMPLEX": { "provider": "local", "model": "deepseek-r1:32b" }
+    "SIMPLE": "ollama/llama3.2:3b",
+    "MEDIUM": "ollama/qwen2.5:14b",
+    "COMPLEX": "ollama/codestral:22b",
+    "REASONING": "ollama/codestral:22b"
   }
 }
 ```
 
-### Mac Docker + Ollama Host
+No API key needed — `noAuth: true` skips key lookup.
+
+### Mac Docker + Ollama on Host
+
+When OpenClaw runs in Docker and Ollama runs on the host Mac:
+
 ```json
 {
   "providers": {
-    "local": {
-      "type": "openai-compatible",
-      "baseUrl": "http://host.docker.internal:11434/v1"
+    "ollama": {
+      "baseUrl": "http://host.docker.internal:11434/v1",
+      "noAuth": true
     }
   },
   "tiers": {
-    "SIMPLE": { "provider": "local", "model": "llama3.2:3b" },
-    "MEDIUM": { "provider": "local", "model": "mistral:7b" },
-    "COMPLEX": { "provider": "local", "model": "codestral:22b" }
+    "SIMPLE": "ollama/llama3.2:3b",
+    "MEDIUM": "ollama/mistral:7b",
+    "COMPLEX": "ollama/codestral:22b",
+    "REASONING": "ollama/codestral:22b"
   }
 }
 ```
 
 ### Hybrid (Local + Cloud)
+
+Simple/medium tasks run locally, complex tasks go to cloud:
+
 ```json
 {
   "providers": {
-    "local": {
-      "type": "openai-compatible",
-      "baseUrl": "http://localhost:11434/v1"
-    },
-    "cloud": {
-      "type": "openai-compatible",
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "apiKey": "from-env:OPENROUTER_API_KEY"
+    "ollama": {
+      "baseUrl": "http://localhost:11434/v1",
+      "noAuth": true
     }
   },
   "tiers": {
-    "SIMPLE": { "provider": "local", "model": "llama3.2:3b" },
-    "MEDIUM": { "provider": "local", "model": "qwen2.5:14b" },
-    "COMPLEX": { "provider": "cloud", "model": "anthropic/claude-sonnet-4.6" }
+    "SIMPLE": "ollama/llama3.2:3b",
+    "MEDIUM": "ollama/qwen2.5:14b",
+    "COMPLEX": "openrouter/anthropic/claude-sonnet-4.6",
+    "REASONING": "openrouter/anthropic/claude-sonnet-4.6"
   }
 }
 ```
+
+OpenRouter is well-known so no provider def needed. Ollama needs one for the custom baseUrl.
+
+### Custom Provider (LM Studio, vLLM, etc.)
+
+```json
+{
+  "providers": {
+    "lmstudio": {
+      "baseUrl": "http://192.168.1.100:1234/v1",
+      "noAuth": true
+    }
+  },
+  "tiers": {
+    "SIMPLE": "lmstudio/my-local-model",
+    "MEDIUM": "lmstudio/my-local-model",
+    "COMPLEX": "openrouter/anthropic/claude-sonnet-4.6",
+    "REASONING": "openrouter/anthropic/claude-sonnet-4.6"
+  }
+}
+```
+
+## Provider Resolution Order
+
+When resolving a provider's baseUrl:
+1. `router-config.json` providers section (custom definitions)
+2. `openclaw.json` models.providers (OpenClaw config)
+3. Well-known URLs (openrouter, anthropic, google, openai, groq, mistral, etc.)
 
 ## Install
 
