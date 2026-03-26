@@ -59,13 +59,13 @@ const WELL_KNOWN_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   groq: "https://api.groq.com/openai/v1",
   mistral: "https://api.mistral.ai/v1",
-  deepseek: "https://api.deepseek.com/v1",
   together: "https://api.together.xyz/v1",
   fireworks: "https://api.fireworks.ai/inference/v1",
   perplexity: "https://api.perplexity.ai",
   xai: "https://api.x.ai/v1",
-  minimax: "https://api.minimax.io/v1",
-  moonshot: "https://api.moonshot.ai/v1",
+  // TMM: OpenRouter available as a provider backend for tier routing
+  // To use: set tier model to "openrouter/<model>" (e.g. "openrouter/google/gemini-2.0-flash-001")
+  openrouter: "https://openrouter.ai/api/v1",
 };
 
 // Provider name → env var name mapping (when not just PROVIDER_API_KEY)
@@ -76,7 +76,8 @@ const ENV_VAR_OVERRIDES: Record<string, string> = {
 // Provider name → auth-profiles.json provider ID mapping
 // Some providers use a different ID in OpenClaw's auth store
 const AUTH_PROFILE_ALIASES: Record<string, string> = {
-  minimax: "minimax-portal",
+  openrouter: "openrouter",
+  // Note: minimax alias removed (Chinese provider policy) — original was: minimax: "minimax-portal"
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
