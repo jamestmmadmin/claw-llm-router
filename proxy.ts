@@ -42,6 +42,25 @@ function extractSystemPrompt(messages: ChatMessage[]): string {
     .join(" ");
 }
 
+// ── TMM: Extract agent and project identifiers for cost attribution ──────────
+
+function extractAgentId(systemPrompt: string): string | null {
+  const match = systemPrompt.match(/agent=(\S+)/);
+  return match ? match[1] : null;
+}
+
+function extractProjectTag(messages: ChatMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i].content;
+    if (typeof content !== "string") continue;
+    const projectMatch = content.match(/\b(DASH|TMMOC|EDU|FIT|DJAX|OCL|GSM)-\d+/i);
+    if (projectMatch) return projectMatch[0].toUpperCase();
+    const tagMatch = content.match(/project:(\S+)/i);
+    if (tagMatch) return tagMatch[1];
+  }
+  return null;
+}
+
 // ── Request router ────────────────────────────────────────────────────────────
 
 async function handleChatCompletion(
@@ -57,6 +76,10 @@ async function handleChatCompletion(
   const rlog = new RouterLogger(log);
   const userPrompt = extractUserPrompt(messages);
   const systemPrompt = extractSystemPrompt(messages);
+
+  // TMM: Extract attribution identifiers
+  const agentId = extractAgentId(systemPrompt);
+  const projectTag = extractProjectTag(messages);
 
   // ── Extract classifiable prompt ──────────────────────────────────────────
   // The user message may contain more than just the user's input:
@@ -169,12 +192,15 @@ async function handleChatCompletion(
     const spec = tierConfig[attemptTier];
 
     // TMM: Inject user parameter for cost attribution — only for OpenRouter provider
-    // Updates per attempt so the actual serving tier/model is tracked, not just the initial classification
+    // Includes agent ID (from system prompt), project tag (from messages), tier, and model
+    // Updates per attempt so the actual serving tier/model is tracked
     if (spec.provider === "openrouter") {
-      const existingUser = typeof body.user === "string" ? body.user : "";
-      body.user = existingUser
-        ? `${existingUser}/tier:${attemptTier}/model:${spec.modelId}`
-        : `tier:${attemptTier}/model:${spec.modelId}`;
+      const parts: string[] = [];
+      if (agentId) parts.push(`agent:${agentId}`);
+      if (projectTag) parts.push(`project:${projectTag}`);
+      parts.push(`tier:${attemptTier}`);
+      parts.push(`model:${spec.modelId.split("/").pop() ?? spec.modelId}`);
+      body.user = parts.join("/");
     }
 
     try {
